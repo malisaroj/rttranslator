@@ -582,23 +582,23 @@ try:
     print("Loading CLOUD models (high accuracy)...")
 
     # Cloud models for both languages (larger Whisper models)
-    asr_cloud_en_proc = WhisperProcessor.from_pretrained("openai/whisper-medium")
+    asr_cloud_en_proc = WhisperProcessor.from_pretrained("openai/whisper-medium.en")
     asr_cloud_en = WhisperForConditionalGeneration.from_pretrained(
-        "openai/whisper-medium"
+        "openai/whisper-medium.en"
     ).to(DEVICE).eval()
 
-    asr_cloud_zh_proc = WhisperProcessor.from_pretrained("openai/whisper-medium")
+    asr_cloud_zh_proc = WhisperProcessor.from_pretrained("lorenzoncina/whisper-medium-zh")
     asr_cloud_zh = WhisperForConditionalGeneration.from_pretrained(
-        "openai/whisper-medium"
+        "lorenzoncina/whisper-medium-zh"
     ).to(DEVICE).eval()
 
     # Load EDGE models (lightweight, efficient)
     print("Loading EDGE models (lightweight)...")
 
-    # Best choice: Whisper Tiny models (much better than Wav2Vec2 for multilingual)
-    asr_edge_zh_proc = WhisperProcessor.from_pretrained("openai/whisper-tiny")
+    # Best choice: Whisper Tiny models
+    asr_edge_zh_proc = WhisperProcessor.from_pretrained("xmzhu/whisper-tiny-zh")
     asr_edge_zh = WhisperForConditionalGeneration.from_pretrained(
-        "openai/whisper-tiny"
+        "xmzhu/whisper-tiny-zh"
     ).to(DEVICE).eval()
 
     # Even better for English: English-only Whisper Tiny
