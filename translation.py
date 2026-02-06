@@ -62,7 +62,7 @@ chrf_metric = evaluate.load("chrf")
 # Initialize googletrans translator
 google_translator = Translator()
 
-# Initialize jieba for Chinese tokenization
+# Initialize jieba for nepali tokenization
 jieba.initialize()
 
 class SystemVisualizer:
@@ -84,7 +84,7 @@ class SystemVisualizer:
         self.colors = {
             'cloud': '#FF6B6B',
             'edge': '#4ECDC4',
-            'zh': '#45B7D1',
+            'ne': '#45B7D1',
             'en': '#96CEB4',
             'increase': '#FFEAA7',
             'decrease': '#DDA0DD',
@@ -120,7 +120,7 @@ class SystemVisualizer:
         if self.history['bleu_scores']:
             bleu_scores = np.array(self.history['bleu_scores'])
             if bleu_scores.ndim == 2 and bleu_scores.shape[1] == 2:
-                axes[1, 0].plot(bleu_scores[:, 0], 'o-', label='Chinese BLEU', alpha=0.7)
+                axes[1, 0].plot(bleu_scores[:, 0], 'o-', label='nepali BLEU', alpha=0.7)
                 axes[1, 0].plot(bleu_scores[:, 1], 's-', label='English BLEU', alpha=0.7)
                 axes[1, 0].legend()
             axes[1, 0].set_title('BLEU Scores')
@@ -343,7 +343,7 @@ class SystemVisualizer:
             if bleu_scores.ndim == 2 and bleu_scores.shape[1] == 2:
                 fig.add_trace(
                     go.Scatter(y=bleu_scores[:, 0], mode='lines',
-                              name='Chinese BLEU', line=dict(color='green', width=2)),
+                              name='nepali BLEU', line=dict(color='green', width=2)),
                     row=1, col=3
                 )
                 fig.add_trace(
@@ -587,19 +587,24 @@ try:
         "openai/whisper-medium.en"
     ).to(DEVICE).eval()
 
-    asr_cloud_zh_proc = WhisperProcessor.from_pretrained("lorenzoncina/whisper-medium-zh")
-    asr_cloud_zh = WhisperForConditionalGeneration.from_pretrained(
-        "lorenzoncina/whisper-medium-zh"
+    asr_cloud_ne_proc = WhisperProcessor.from_pretrained("kpriyanshu256/whisper-medium-ne-NP-20-16-1e-05-pretrain-hi")
+    asr_cloud_ne = WhisperForConditionalGeneration.from_pretrained(
+        "kpriyanshu256/whisper-medium-ne-NP-20-16-1e-05-pretrain-hi"
     ).to(DEVICE).eval()
 
     # Load EDGE models (lightweight, efficient)
     print("Loading EDGE models (lightweight)...")
 
     # Best choice: Whisper Tiny models
-    asr_edge_zh_proc = WhisperProcessor.from_pretrained("xmzhu/whisper-tiny-zh")
-    asr_edge_zh = WhisperForConditionalGeneration.from_pretrained(
-        "xmzhu/whisper-tiny-zh"
+    asr_edge_ne_proc = WhisperProcessor.from_pretrained("kpriyanshu256/whisper-medium-ne-NP-20-16-1e-05-pretrain-hi")
+    asr_edge_ne = WhisperForConditionalGeneration.from_pretrained(
+        "kpriyanshu256/whisper-medium-ne-NP-20-16-1e-05-pretrain-hi"
     ).to(DEVICE).eval()
+
+    # asr_edge_ne_proc = WhisperProcessor.from_pretrained("carlot/whisper-tiny-ne")
+    # asr_edge_ne = WhisperForConditionalGeneration.from_pretrained(
+    #     "carlot/whisper-tiny-ne"
+    # ).to(DEVICE).eval()
 
     # Even better for English: English-only Whisper Tiny
     asr_edge_en_proc = WhisperProcessor.from_pretrained("openai/whisper-tiny.en")
@@ -608,11 +613,11 @@ try:
     ).to(DEVICE).eval()
 
     print("Loading translation models...")
-    zh_en_tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-zh-en")
-    zh_en_model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-zh-en").to(DEVICE).eval()
+    ne_en_tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-ne-en")
+    ne_en_model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-ne-en").to(DEVICE).eval()
 
-    en_zh_tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-zh")
-    en_zh_model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-zh").to(DEVICE).eval()
+    en_ne_tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-ne")
+    en_ne_model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-ne").to(DEVICE).eval()
 
     print("Models loaded successfully!")
 except Exception as e:
@@ -651,8 +656,8 @@ def decode_audio_bytes(audio_bytes, target_sr=16000):
         print(f"Audio decoding error: {e}")
     return None
 
-def preprocess_chinese_text(text):
-    """Preprocess Chinese text for BLEU calculation"""
+def preprocess_nepali_text(text):
+    """Preprocess nepali text for BLEU calculation"""
     if not text:
         return ""
 
@@ -911,7 +916,7 @@ def load_fleurs_stream(lang_code, split="train", max_samples=MAX_SAMPLES):
         # Return empty generator
         return
 
-def google_translate(text, src="zh-cn", dest="en"):
+def google_translate(text, src="ne", dest="en"):
     """Translate using googletrans with retry logic"""
     if not text.strip():
         return ""
@@ -937,7 +942,7 @@ def run_system(audio_array, language, bandwidth, complexity):
 
     Args:
         audio_array: Audio data as numpy array
-        language: "zh" for Chinese, "en" for English
+        language: "ne" for nepali, "en" for English
         bandwidth: Available bandwidth in kbps
         complexity: Complexity level ("low", "medium", "high")
 
@@ -955,38 +960,38 @@ def run_system(audio_array, language, bandwidth, complexity):
     start_time = time.time()
 
     try:
-        if language == "zh":
+        if language == "ne":
             if use_cloud:
-                # Use Whisper for Chinese (cloud model)
-                print(f"  Using Whisper (cloud) for Chinese, complexity={complexity}, bandwidth={bandwidth}")
+                # Use Whisper for nepali (cloud model)
+                print(f"  Using Whisper (cloud) for nepali, complexity={complexity}, bandwidth={bandwidth}")
 
-                inputs = asr_cloud_zh_proc(
+                inputs = asr_cloud_ne_proc(
                     audio_array,
                     sampling_rate=TARGET_SR,
                     return_tensors="pt"
                 ).to(DEVICE)
 
                 with torch_no_grad():
-                    predicted_ids = asr_cloud_zh.generate(**inputs)
-                    transcription = asr_cloud_zh_proc.batch_decode(
+                    predicted_ids = asr_cloud_ne.generate(**inputs)
+                    transcription = asr_cloud_ne_proc.batch_decode(
                         predicted_ids,
                         skip_special_tokens=True
                     )[0]
 
                 model_used = "cloud"
             else:
-                # Use Whisper tiny for Chinese (Edge model)
-                print(f"  Using Whisper (tiny) for Chinese, complexity={complexity}, bandwidth={bandwidth}")
+                # Use Whisper tiny for nepali (Edge model)
+                print(f"  Using Whisper (tiny) for nepali, complexity={complexity}, bandwidth={bandwidth}")
 
-                inputs = asr_edge_zh_proc(
+                inputs = asr_edge_ne_proc(
                     audio_array,
                     sampling_rate=TARGET_SR,
                     return_tensors="pt"
                 ).to(DEVICE)
 
                 with torch_no_grad():
-                    predicted_ids = asr_edge_zh.generate(**inputs)
-                    transcription = asr_edge_zh_proc.batch_decode(
+                    predicted_ids = asr_edge_ne.generate(**inputs)
+                    transcription = asr_edge_ne_proc.batch_decode(
                         predicted_ids,
                         skip_special_tokens=True
                     )[0]
@@ -1061,8 +1066,8 @@ def translate_text(text, source_lang, target_lang):
     start_time = time.time()
 
     try:
-        if source_lang == "zh" and target_lang == "en":
-            inputs = zh_en_tokenizer(
+        if source_lang == "ne" and target_lang == "en":
+            inputs = ne_en_tokenizer(
                 text,
                 return_tensors="pt",
                 truncation=True,
@@ -1070,11 +1075,11 @@ def translate_text(text, source_lang, target_lang):
             ).to(DEVICE)
 
             with torch_no_grad():
-                outputs = zh_en_model.generate(**inputs)
-                translation = zh_en_tokenizer.decode(outputs[0], skip_special_tokens=True)
+                outputs = ne_en_model.generate(**inputs)
+                translation = ne_en_tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-        elif source_lang == "en" and target_lang == "zh":
-            inputs = en_zh_tokenizer(
+        elif source_lang == "en" and target_lang == "ne":
+            inputs = en_ne_tokenizer(
                 text,
                 return_tensors="pt",
                 truncation=True,
@@ -1082,8 +1087,8 @@ def translate_text(text, source_lang, target_lang):
             ).to(DEVICE)
 
             with torch_no_grad():
-                outputs = en_zh_model.generate(**inputs)
-                translation = en_zh_tokenizer.decode(outputs[0], skip_special_tokens=True)
+                outputs = en_ne_model.generate(**inputs)
+                translation = en_ne_tokenizer.decode(outputs[0], skip_special_tokens=True)
         else:
             print(f"  Unsupported translation direction: {source_lang}->{target_lang}")
             translation = ""
@@ -1103,7 +1108,7 @@ def translate_text(text, source_lang, target_lang):
         print(f"Translation error: {e}")
         return ""
 
-def rl_training(zh_stream, en_stream, rounds=1):
+def rl_training(ne_stream, en_stream, rounds=1):
     """Train RL agent for adaptive speech translation"""
     agent = RLAgent(lr=0.1, gamma=0.9, epsilon=0.3)
     cloud_usage = []
@@ -1113,20 +1118,20 @@ def rl_training(zh_stream, en_stream, rounds=1):
         print(f"\n--- Training Round {round_num + 1}/{rounds} ---")
 
         # Convert streams to lists for easier iteration
-        zh_samples = list(zh_stream)
+        ne_samples = list(ne_stream)
         en_samples = list(en_stream)
 
-        min_samples = min(len(zh_samples), len(en_samples))
+        min_samples = min(len(ne_samples), len(en_samples))
         print(f"Processing {min_samples} sample pairs")
 
         complexity_idx = 1  # Start with "medium" complexity
 
         for idx in range(min_samples):
-            zh_sample = zh_samples[idx]
+            ne_sample = ne_samples[idx]
             en_sample = en_samples[idx]
 
             # Skip if no audio
-            if zh_sample["audio_array"] is None or en_sample["audio_array"] is None:
+            if ne_sample["audio_array"] is None or en_sample["audio_array"] is None:
                 print(f"Skipping sample {idx}: No audio data")
                 continue
 
@@ -1150,19 +1155,19 @@ def rl_training(zh_stream, en_stream, rounds=1):
             next_state_key = agent.get_state_key(bandwidth, new_complexity)
 
             # Get references
-            zh_reference = zh_sample.get("transcription", "") or zh_sample.get("raw_transcription", "")
+            ne_reference = ne_sample.get("transcription", "") or ne_sample.get("raw_transcription", "")
             en_reference = en_sample.get("transcription", "") or en_sample.get("raw_transcription", "")
 
             print(f"\nSample {idx + 1}/{min_samples}:")
             print(f"  Bandwidth: {bandwidth}, Complexity: {old_idx}({current_complexity}) -> {complexity_idx}({new_complexity})")
             print(f"  Action: {action}")
-            print(f"  Chinese ref: {zh_reference[:80]}...")
+            print(f"  nepali ref: {ne_reference[:80]}...")
             print(f"  English ref: {en_reference[:80]}...")
 
-            # Run system for Chinese audio (match with Chinese reference)
-            print("\n  Processing Chinese audio:")
-            zh_transcription, zh_model_used, zh_latency = run_system(
-                zh_sample["audio_array"], "zh", bandwidth, new_complexity
+            # Run system for nepali audio (match with nepali reference)
+            print("\n  Processing nepali audio:")
+            ne_transcription, ne_model_used, ne_latency = run_system(
+                ne_sample["audio_array"], "ne", bandwidth, new_complexity
             )
 
             # Run system for English audio (match with English reference)
@@ -1171,38 +1176,38 @@ def rl_training(zh_stream, en_stream, rounds=1):
                 en_sample["audio_array"], "en", bandwidth, new_complexity
             )
 
-            # Translate Chinese transcription to English for cross-language evaluation
-            print("\n  Translating Chinese to English:")
-            zh_to_en_translation = translate_text(zh_transcription, "zh", "en")
+            # Translate nepali transcription to English for cross-language evaluation
+            print("\n  Translating nepali to English:")
+            ne_to_en_translation = translate_text(ne_transcription, "ne", "en")
 
-            # Translate English transcription to Chinese for cross-language evaluation
-            print("\n  Translating English to Chinese:")
-            en_to_zh_translation = translate_text(en_transcription, "en", "zh")
+            # Translate English transcription to nepali for cross-language evaluation
+            print("\n  Translating English to nepali:")
+            en_to_ne_translation = translate_text(en_transcription, "en", "ne")
 
             # Calculate BLEU scores using sacrebleu
             print("\n  Calculating metrics:")
-            zh_bleu = calculate_bleu_score(zh_transcription, zh_reference, language="zh")
+            ne_bleu = calculate_bleu_score(ne_transcription, ne_reference, language="ne")
             en_bleu = calculate_bleu_score(en_transcription, en_reference, language="en")
 
             # Also calculate ChrF scores for comparison (using sacrebleu if available)
-            zh_chrf = calculate_chrf_score(zh_transcription, zh_reference)
+            ne_chrf = calculate_chrf_score(ne_transcription, ne_reference)
             en_chrf = calculate_chrf_score(en_transcription, en_reference)
 
             # Count disfluencies
-            zh_disfluency_count = len(FILLER_PATTERN.findall(zh_transcription)) if zh_transcription else 0
+            ne_disfluency_count = len(FILLER_PATTERN.findall(ne_transcription)) if ne_transcription else 0
             en_disfluency_count = len(FILLER_PATTERN.findall(en_transcription)) if en_transcription else 0
-            total_disfluency_count = zh_disfluency_count + en_disfluency_count
+            total_disfluency_count = ne_disfluency_count + en_disfluency_count
 
             # Get feedback bonuses for translations
-            zh_to_en_feedback = simulate_feedback(zh_to_en_translation, en_reference, "zh", "en") if zh_to_en_translation else 0.0
-            en_to_zh_feedback = simulate_feedback(en_to_zh_translation, zh_reference, "en", "zh") if en_to_zh_translation else 0.0
-            total_feedback = zh_to_en_feedback + en_to_zh_feedback
+            ne_to_en_feedback = simulate_feedback(ne_to_en_translation, en_reference, "ne", "en") if ne_to_en_translation else 0.0
+            en_to_ne_feedback = simulate_feedback(en_to_ne_translation, ne_reference, "en", "ne") if en_to_ne_translation else 0.0
+            total_feedback = ne_to_en_feedback + en_to_ne_feedback
 
             # Calculate combined scores (use the average of BLEU and ChrF for robustness)
-            zh_score = (zh_bleu + zh_chrf) / 2
-            en_score = (en_bleu + en_chrf) / 2
-            avg_score = (zh_score + en_score) / 2
-            avg_latency = (zh_latency + en_latency) / 2
+            ne_score = ne_chrf
+            en_score = en_chrf
+            avg_score = (ne_score + en_score) / 2
+            avg_latency = (ne_latency + en_latency) / 2
 
             # Calculate reward
             reward = calculate_reward(
@@ -1219,9 +1224,9 @@ def rl_training(zh_stream, en_stream, rounds=1):
             visualizer.add_data_point(
                 rewards=reward,
                 latencies=avg_latency,
-                bleu_scores=[zh_bleu, en_bleu],
-                chrf_scores=[zh_chrf, en_chrf],
-                cloud_usage=zh_model_used == "cloud" or en_model_used == "cloud",
+                bleu_scores=[ne_bleu, en_bleu],
+                chrf_scores=[ne_chrf, en_chrf],
+                cloud_usage=ne_model_used == "cloud" or en_model_used == "cloud",
                 bandwidth=bandwidth,
                 complexity=new_complexity,
                 actions=action,
@@ -1229,32 +1234,32 @@ def rl_training(zh_stream, en_stream, rounds=1):
             )
 
             # Track metrics
-            cloud_used = zh_model_used == "cloud" or en_model_used == "cloud"
+            cloud_used = ne_model_used == "cloud" or en_model_used == "cloud"
             cloud_usage.append(1 if cloud_used else 0)
             metrics.append({
-                'zh_bleu': zh_bleu,
+                'ne_bleu': ne_bleu,
                 'en_bleu': en_bleu,
-                'zh_chrf': zh_chrf,
+                'ne_chrf': ne_chrf,
                 'en_chrf': en_chrf,
                 'avg_score': avg_score,
-                'zh_latency': zh_latency,
+                'ne_latency': ne_latency,
                 'en_latency': en_latency,
                 'avg_latency': avg_latency,
                 'reward': reward,
                 'cloud_used': cloud_used
             })
 
-            print(f"  Chinese BLEU: {zh_bleu:.4f}, ChrF: {zh_chrf:.4f}")
+            print(f"  nepali BLEU: {ne_bleu:.4f}, ChrF: {ne_chrf:.4f}")
             print(f"  English BLEU: {en_bleu:.4f}, ChrF: {en_chrf:.4f}")
             print(f"  Average Score: {avg_score:.4f}, Average Latency: {avg_latency:.2f}s")
             print(f"  Reward: {reward:.4f}")
             print(f"  Cloud used: {cloud_used}")
 
             # Display tokenization debug info
-            if zh_bleu < 0.1:
-                print(f"  ⚠ Chinese text debug:")
-                print(f"    Reference: {zh_reference[:100]}...")
-                print(f"    Prediction: {zh_transcription[:100]}...")
+            if ne_bleu < 0.1:
+                print(f"  ⚠ nepali text debug:")
+                print(f"    Reference: {ne_reference[:100]}...")
+                print(f"    Prediction: {ne_transcription[:100]}...")
 
             if en_bleu < 0.1:
                 print(f"  ⚠ English text debug:")
@@ -1275,12 +1280,12 @@ def rl_training(zh_stream, en_stream, rounds=1):
         print(f"  Cloud Usage Ratio: {cloud_ratio:.2%}")
 
         # Language-specific stats
-        avg_zh_bleu = np.mean([m['zh_bleu'] for m in metrics])
+        avg_ne_bleu = np.mean([m['ne_bleu'] for m in metrics])
         avg_en_bleu = np.mean([m['en_bleu'] for m in metrics])
-        avg_zh_chrf = np.mean([m['zh_chrf'] for m in metrics])
+        avg_ne_chrf = np.mean([m['ne_chrf'] for m in metrics])
         avg_en_chrf = np.mean([m['en_chrf'] for m in metrics])
 
-        print(f"  Chinese BLEU: {avg_zh_bleu:.4f}, ChrF: {avg_zh_chrf:.4f}")
+        print(f"  nepali BLEU: {avg_ne_bleu:.4f}, ChrF: {avg_ne_chrf:.4f}")
         print(f"  English BLEU: {avg_en_bleu:.4f}, ChrF: {avg_en_chrf:.4f}")
 
         # Print sacrebleu information
@@ -1306,21 +1311,21 @@ def main():
 
         # Load datasets
         print("\nLoading datasets...")
-        zh_stream = load_fleurs_stream("cmn_hans_cn", "train")
+        ne_stream = load_fleurs_stream("ne_np", "train")
         en_stream = load_fleurs_stream("en_us", "train")
 
         # Convert to lists for debugging
-        zh_samples = list(zh_stream)
+        ne_samples = list(ne_stream)
         en_samples = list(en_stream)
 
-        print(f"Loaded {len(zh_samples)} Chinese samples")
+        print(f"Loaded {len(ne_samples)} Nepali samples")
         print(f"Loaded {len(en_samples)} English samples")
 
         # Check first samples
-        if zh_samples and zh_samples[0]['audio_array'] is not None:
-            print(f"\nFirst Chinese sample:")
-            print(f"  Audio shape: {zh_samples[0]['audio_array'].shape}")
-            print(f"  Transcription: {zh_samples[0]['transcription'][:100] if zh_samples[0]['transcription'] else 'No transcription'}")
+        if ne_samples and ne_samples[0]['audio_array'] is not None:
+            print(f"\nFirst nepali sample:")
+            print(f"  Audio shape: {ne_samples[0]['audio_array'].shape}")
+            print(f"  Transcription: {ne_samples[0]['transcription'][:100] if ne_samples[0]['transcription'] else 'No transcription'}")
 
         if en_samples and en_samples[0]['audio_array'] is not None:
             print(f"\nFirst English sample:")
@@ -1329,7 +1334,7 @@ def main():
 
         # Train RL agent
         print("\nStarting RL training...")
-        agent, cloud_ratio = rl_training(zh_samples, en_samples, rounds=1)
+        agent, cloud_ratio = rl_training(ne_samples, en_samples, rounds=1)
 
         # Generate visualizations
         print("\n" + "="*60)
