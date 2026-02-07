@@ -26,6 +26,8 @@ from transformers import (
     Wav2Vec2Processor, Wav2Vec2ForCTC,
     MarianMTModel, MarianTokenizer
 )
+from transformers import MBart50TokenizerFast, MBartForConditionalGeneration
+
 import soundfile as sf
 from googletrans import Translator
 
@@ -596,15 +598,10 @@ try:
     print("Loading EDGE models (lightweight)...")
 
     # Best choice: Whisper Tiny models
-    asr_edge_ne_proc = WhisperProcessor.from_pretrained("kpriyanshu256/whisper-medium-ne-NP-20-16-1e-05-pretrain-hi")
+    asr_edge_ne_proc = WhisperProcessor.from_pretrained("Crynl/whisper-small-nepali")
     asr_edge_ne = WhisperForConditionalGeneration.from_pretrained(
-        "kpriyanshu256/whisper-medium-ne-NP-20-16-1e-05-pretrain-hi"
+        "Crynl/whisper-small-nepali"
     ).to(DEVICE).eval()
-
-    # asr_edge_ne_proc = WhisperProcessor.from_pretrained("carlot/whisper-tiny-ne")
-    # asr_edge_ne = WhisperForConditionalGeneration.from_pretrained(
-    #     "carlot/whisper-tiny-ne"
-    # ).to(DEVICE).eval()
 
     # Even better for English: English-only Whisper Tiny
     asr_edge_en_proc = WhisperProcessor.from_pretrained("openai/whisper-tiny.en")
@@ -612,12 +609,23 @@ try:
         "openai/whisper-tiny.en"
     ).to(DEVICE).eval()
 
-    print("Loading translation models...")
-    ne_en_tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-ne-en")
-    ne_en_model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-ne-en").to(DEVICE).eval()
+    # print("Loading translation models...")
+    # ne_en_tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-ne-en")
+    # ne_en_model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-ne-en").to(DEVICE).eval()
 
-    en_ne_tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-ne")
-    en_ne_model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-ne").to(DEVICE).eval()
+    # en_ne_tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-ne")
+    # en_ne_model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-ne").to(DEVICE).eval()
+
+
+    print("Loading mBART-50 model...")
+
+    tokenizer = MBart50TokenizerFast.from_pretrained(
+        "facebook/mbart-large-50-many-to-many-mmt"
+    )
+    model = MBartForConditionalGeneration.from_pretrained(
+        "facebook/mbart-large-50-many-to-many-mmt"
+    ).to(DEVICE).eval()
+
 
     print("Models loaded successfully!")
 except Exception as e:
@@ -1058,55 +1066,112 @@ def run_system(audio_array, language, bandwidth, complexity):
         traceback.print_exc()
         return "", "edge", 0.0
 
+# def translate_text(text, source_lang, target_lang):
+#     """Translate text between languages"""
+#     if not text.strip():
+#         return ""
+
+#     start_time = time.time()
+
+#     try:
+#         if source_lang == "ne" and target_lang == "en":
+#             inputs = ne_en_tokenizer(
+#                 text,
+#                 return_tensors="pt",
+#                 truncation=True,
+#                 max_length=128
+#             ).to(DEVICE)
+
+#             with torch_no_grad():
+#                 outputs = ne_en_model.generate(**inputs)
+#                 translation = ne_en_tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+#         elif source_lang == "en" and target_lang == "ne":
+#             inputs = en_ne_tokenizer(
+#                 text,
+#                 return_tensors="pt",
+#                 truncation=True,
+#                 max_length=128
+#             ).to(DEVICE)
+
+#             with torch_no_grad():
+#                 outputs = en_ne_model.generate(**inputs)
+#                 translation = en_ne_tokenizer.decode(outputs[0], skip_special_tokens=True)
+#         else:
+#             print(f"  Unsupported translation direction: {source_lang}->{target_lang}")
+#             translation = ""
+
+#         latency = time.time() - start_time
+#         print(f"  Translation: {translation[:80]}... (took {latency:.2f}s)")
+
+#         # Check if translation is correct
+#         if translation.strip():
+#             print(f"  ✓ Translation generated successfully")
+#         else:
+#             print(f"  ✗ Translation failed or empty")
+
+#         return translation
+
+#     except Exception as e:
+#         print(f"Translation error: {e}")
+#         return ""
+
 def translate_text(text, source_lang, target_lang):
-    """Translate text between languages"""
+    """Translate text between languages using mBART-50"""
     if not text.strip():
         return ""
 
     start_time = time.time()
 
     try:
-        if source_lang == "ne" and target_lang == "en":
-            inputs = ne_en_tokenizer(
-                text,
-                return_tensors="pt",
-                truncation=True,
-                max_length=128
-            ).to(DEVICE)
+        # Map short codes to mBART language codes
+        lang_map = {
+            "ne": "ne_NP",
+            "en": "en_XX"
+        }
 
-            with torch_no_grad():
-                outputs = ne_en_model.generate(**inputs)
-                translation = ne_en_tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-        elif source_lang == "en" and target_lang == "ne":
-            inputs = en_ne_tokenizer(
-                text,
-                return_tensors="pt",
-                truncation=True,
-                max_length=128
-            ).to(DEVICE)
-
-            with torch_no_grad():
-                outputs = en_ne_model.generate(**inputs)
-                translation = en_ne_tokenizer.decode(outputs[0], skip_special_tokens=True)
-        else:
+        if source_lang not in lang_map or target_lang not in lang_map:
             print(f"  Unsupported translation direction: {source_lang}->{target_lang}")
-            translation = ""
+            return ""
+
+        # Set source language
+        tokenizer.src_lang = lang_map[source_lang]
+
+        inputs = tokenizer(
+            text,
+            return_tensors="pt",
+            truncation=True,
+            max_length=128
+        ).to(DEVICE)
+
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                forced_bos_token_id=tokenizer.lang_code_to_id[lang_map[target_lang]],
+                max_length=128,
+                num_beams=5,
+                repetition_penalty=1.1
+            )
+
+        translation = tokenizer.decode(
+            outputs[0],
+            skip_special_tokens=True
+        )
 
         latency = time.time() - start_time
         print(f"  Translation: {translation[:80]}... (took {latency:.2f}s)")
 
-        # Check if translation is correct
         if translation.strip():
-            print(f"  ✓ Translation generated successfully")
+            print("  ✓ Translation generated successfully")
         else:
-            print(f"  ✗ Translation failed or empty")
+            print("  ✗ Translation failed or empty")
 
         return translation
 
     except Exception as e:
         print(f"Translation error: {e}")
         return ""
+
 
 def rl_training(ne_stream, en_stream, rounds=1):
     """Train RL agent for adaptive speech translation"""
